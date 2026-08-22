@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: attendance_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: attendance_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - attendance_db_data:/var/lib/postgresql/data
+    
+volumes:
+  attendance_db_data:
