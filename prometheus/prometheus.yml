@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 5s # Scrape targets every 5 seconds
+
+scrape_configs:
+  - job_name: 'fastapi_backend'
+    static_configs:
+      # 'api' is the docker-compose service name. 
+      # We target port 8000 directly to bypass Nginx for internal metric scraping.
+      - targets: ['api:8000']
