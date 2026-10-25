@@ -34,4 +34,16 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class AttendanceCreate(BaseModel):
+    date: date
+    status: str # "present", "absent", or "cancelled"
+
+class AttendanceResponse(BaseModel):
+    id: int
+    course_id: int
+    date: date
+    status: str
+
+    class Config:
+        from_attributes = True
     
