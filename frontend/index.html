@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Risk Calculator</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: #f4f4f9; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input, button { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .hidden { display: none; }
+        .risk-high { color: #d9534f; font-weight: bold; }
+        .risk-safe { color: #5cb85c; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Attendance & Risk Dashboard</h1>
+
+    <!-- Auth Section -->
+    <div id="auth-section" class="card">
+        <h2>Login</h2>
+        <input type="email" id="email" placeholder="Email" value="test@example.com">
+        <input type="password" id="password" placeholder="Password" value="password123">
+        <button onclick="login()">Login</button>
+        <p id="auth-message"></p>
+    </div>
+
+    <!-- Dashboard Section -->
+    <div id="dashboard-section" class="card hidden">
+        <h2>Your Courses</h2>
+        <button onclick="logout()" style="background: #dc3545; width: auto; margin-bottom: 15px;">Logout</button>
+        
+        <div id="courses-list"></div>
+
+        <hr>
+        <h3>Add New Course</h3>
+        <input type="text" id="course-name" placeholder="Course Name (e.g. Data Structures)">
+        <button onclick="addCourse()">Create Course</button>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost";
+
+        // --- AUTHENTICATION ---
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            const response = await fetch(`${API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                localStorage.setItem('token', data.access_token);
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('dashboard-section').classList.remove('hidden');
+                loadCourses();
+            } else {
+                document.getElementById('auth-message').innerText = "Login failed. Check credentials or sign up via /docs.";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            document.getElementById('auth-section').classList.remove('hidden');
+            document.getElementById('dashboard-section').classList.add('hidden');
+        }
+
+        // --- COURSES & ATTENDANCE ---
+        async function loadCourses() {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/courses/`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const courses = await response.json();
+            
+            const listDiv = document.getElementById('courses-list');
+            listDiv.innerHTML = "";
+
+            for (const course of courses) {
+                // Fetch the calculated status (cache hit!)
+                const statusRes = await fetch(`${API_URL}/attendance/${course.id}/status`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const status = await statusRes.json();
+                
+                const riskClass = status.current_pct < 75 ? 'risk-high' : 'risk-safe';
+
+                listDiv.innerHTML += `
+                    <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 4px;">
+                        <strong>${course.name}</strong> 
+                        (Attendance: <span class="${riskClass}">${status.current_pct}%</span>)
+                        <br>
+                        Classes Held: ${status.classes_held} | Safe Leaves Remaining: ${status.safe_leaves_remaining}
+                        <div style="margin-top: 10px; display: flex; gap: 10px;">
+                            <button onclick="markAttendance(${course.id}, 'present')" style="background: #28a745;">Mark Present</button>
+                            <button onclick="markAttendance(${course.id}, 'absent')" style="background: #dc3545;">Mark Absent</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function addCourse() {
+            const token = localStorage.getItem('token');
+            const name = document.getElementById('course-name').value;
+            
+            await fetch(`${API_URL}/courses/`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ name: name, min_attendance_pct: 75.0 })
+            });
+            loadCourses();
+        }
+
+        async function markAttendance(courseId, status) {
+            const token = localStorage.getItem('token');
+            const today = new Date().toISOString().split('T')[0];
+
+            await fetch(`${API_URL}/attendance/${courseId}`, {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ date: today, status: status })
+            });
+            loadCourses(); // Refresh the UI (This forces a cache recalculation)
+        }
+
+        // Check if already logged in on page load
+        if (localStorage.getItem('token')) {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            loadCourses();
+        }
+    </script>
+</body>
+</html>
