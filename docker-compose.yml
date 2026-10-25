@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   db:
     image: postgres:16
@@ -11,10 +13,33 @@ services:
       - "6003:5432"
     volumes:
       - attendance_db_data:/var/lib/postgresql/data
+
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
-    
+  
+  api:
+    build: .
+    environment:
+      # Updated credentials and host to match the 'db' service above
+      - DATABASE_URL=postgresql+psycopg2://admin:admin123@db:5432/attendance_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=your_super_secret_key_here
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=60
+    depends_on:
+      - db
+      - redis
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
 volumes:
   attendance_db_data:

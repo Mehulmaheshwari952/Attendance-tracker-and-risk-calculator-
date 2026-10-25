@@ -69,8 +69,9 @@ def get_attendance_status(
     
     if cached_data:
         # Return the cached JSON string as a Python dictionary
+        print("🟢 CACHE HIT: Returning data from Redis")
         return json.loads(cached_data)
-
+    print("🔴 CACHE MISS: Querying PostgreSQL and calculating...")
     # 1. Verify ownership (if cache misses)
     course = db.query(models.Course).filter(
         models.Course.id == course_id,
