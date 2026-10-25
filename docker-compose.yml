@@ -32,6 +32,26 @@ services:
       - db
       - redis
 
+  celery_worker:
+    build: .
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://admin:admin123@db:5432/attendance_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  celery_beat:
+    build: .
+    command: celery -A app.worker.celery_app beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://admin:admin123@db:5432/attendance_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
   nginx:
     image: nginx:latest
     volumes:
