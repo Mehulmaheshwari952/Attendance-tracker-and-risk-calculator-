@@ -39,6 +39,7 @@
         <h3>Add New Course</h3>
         <input type="text" id="course-name" placeholder="Course Name (e.g. Data Structures)">
         <button onclick="addCourse()">Create Course</button>
+        <p id="course-message" role="status"></p>
     </div>
 
     <script>
@@ -75,66 +76,103 @@
         // --- COURSES & ATTENDANCE ---
         async function loadCourses() {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${API_URL}/courses/`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const courses = await response.json();
-            
             const listDiv = document.getElementById('courses-list');
-            listDiv.innerHTML = "";
-
-            for (const course of courses) {
-                // Fetch the calculated status (cache hit!)
-                const statusRes = await fetch(`${API_URL}/attendance/${course.id}/status`, {
+            try {
+                const response = await fetch(`${API_URL}/courses/`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                const status = await statusRes.json();
-                
-                const riskClass = status.current_pct < 75 ? 'risk-high' : 'risk-safe';
+                if (!response.ok) {
+                    throw new Error(`Could not load courses (${response.status}).`);
+                }
+                const courses = await response.json();
+                listDiv.innerHTML = "";
 
-                listDiv.innerHTML += `
-                    <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 4px;">
-                        <strong>${course.name}</strong> 
-                        (Attendance: <span class="${riskClass}">${status.current_pct}%</span>)
-                        <br>
-                        Classes Held: ${status.classes_held} | Safe Leaves Remaining: ${status.safe_leaves_remaining}
-                        <div style="margin-top: 10px; display: flex; gap: 10px;">
-                            <button onclick="markAttendance(${course.id}, 'present')" style="background: #28a745;">Mark Present</button>
-                            <button onclick="markAttendance(${course.id}, 'absent')" style="background: #dc3545;">Mark Absent</button>
+                for (const course of courses) {
+                    const statusRes = await fetch(`${API_URL}/attendance/${course.id}/status`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!statusRes.ok) {
+                        throw new Error(`Could not load attendance for ${course.name} (${statusRes.status}).`);
+                    }
+                    const status = await statusRes.json();
+                    const attendancePct = status.attendance_percentage ?? 0;
+                    const classesHeld = (status.total_attended ?? 0) + (status.total_missed ?? 0);
+                    const riskClass = attendancePct < course.min_attendance_pct ? 'risk-high' : 'risk-safe';
+
+                    listDiv.innerHTML += `
+                        <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 4px;">
+                            <strong>${course.name}</strong>
+                            (Attendance: <span class="${riskClass}">${attendancePct}%</span>)
+                            <br>
+                            Classes Held: ${classesHeld} | Safe Leaves Remaining: ${status.safe_leaves ?? 0}
+                            <div style="margin-top: 10px; display: flex; gap: 10px;">
+                                <button onclick="markAttendance(${course.id}, 'present')" style="background: #28a745;">Mark Present</button>
+                                <button onclick="markAttendance(${course.id}, 'absent')" style="background: #dc3545;">Mark Absent</button>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                }
+            } catch (error) {
+                listDiv.innerText = error.message;
             }
         }
 
         async function addCourse() {
             const token = localStorage.getItem('token');
-            const name = document.getElementById('course-name').value;
-            
-            await fetch(`${API_URL}/courses/`, {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json' 
-                },
-                body: JSON.stringify({ name: name, min_attendance_pct: 75.0 })
-            });
-            loadCourses();
+            const name = document.getElementById('course-name').value.trim();
+            const message = document.getElementById('course-message');
+            message.innerText = '';
+
+            if (!name) {
+                message.innerText = 'Enter a course name.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/courses/`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: name, min_attendance_pct: 75.0 })
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || `Course creation failed (${response.status}).`);
+                }
+                document.getElementById('course-name').value = '';
+                message.innerText = 'Course created.';
+                await loadCourses();
+            } catch (error) {
+                message.innerText = error.message;
+            }
         }
 
         async function markAttendance(courseId, status) {
             const token = localStorage.getItem('token');
             const today = new Date().toISOString().split('T')[0];
+            const message = document.getElementById('course-message');
+            message.innerText = '';
 
-            await fetch(`${API_URL}/attendance/${courseId}`, {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json' 
-                },
-                body: JSON.stringify({ date: today, status: status })
-            });
-            loadCourses(); // Refresh the UI (This forces a cache recalculation)
+            try {
+                const response = await fetch(`${API_URL}/attendance/${courseId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ date: today, status: status })
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || `Attendance marking failed (${response.status}).`);
+                }
+                message.innerText = 'Attendance marked.';
+                await loadCourses();
+            } catch (error) {
+                message.innerText = error.message;
+            }
         }
 
         // Check if already logged in on page load

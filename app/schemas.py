@@ -1,18 +1,18 @@
 
-from datetime import date
-from pydantic import BaseModel
+from datetime import date as Date
+from pydantic import BaseModel, Field
 
 class UserCreate(BaseModel):
     email: str
     password: str
-    term_start_date: date
-    term_end_date: date 
+    term_start_date: Date
+    term_end_date: Date
 
 class UserResponse(BaseModel):
     id: int
     email: str
-    term_start_date: date
-    term_end_date: date
+    term_start_date: Date
+    term_end_date: Date
 
     class Config:
         from_attributes = True
@@ -25,23 +25,22 @@ class CourseResponse(BaseModel):
     id: int
     name: str
     min_attendance_pct: float = 75.0
-    classes_held: int
-    classes_attended: int
-    current_pct: float
-    safe_leaves_remaining: int  
+
+    class Config:
+        from_attributes = True
 
 class LoginRequest(BaseModel):
     email: str
     password: str
 
 class AttendanceCreate(BaseModel):
-    date: date
+    date: Date
     status: str # "present", "absent", or "cancelled"
 
 class AttendanceResponse(BaseModel):
     id: int
     course_id: int
-    date: date
+    date: Date = Field(validation_alias="date_")
     status: str
 
     class Config:

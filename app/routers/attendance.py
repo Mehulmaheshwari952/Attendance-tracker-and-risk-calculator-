@@ -31,7 +31,7 @@ def mark_attendance(
 
     existing_record = db.query(models.AttendanceRecord).filter(
         models.AttendanceRecord.course_id == course_id,
-        models.AttendanceRecord.date == attendance.date
+        models.AttendanceRecord.date_ == attendance.date
     ).first()
 
     if existing_record:
@@ -41,8 +41,9 @@ def mark_attendance(
         record = existing_record
     else:
         new_record = models.AttendanceRecord(
-            **attendance.dict(),
-            course_id=course_id
+            course_id=course_id,
+            date_=attendance.date,
+            status=attendance.status,
         )
         db.add(new_record)
         db.commit()
